@@ -2,13 +2,11 @@ import random
 import math
 from typing import List, Tuple
 from collections import defaultdict
-from copy import deepcopy
 
 def is_rectangular(arr):
     return len({len(row) for row in arr}) <= 1
 
 class Matrix:
-
     def __init__(self, arr=None, rows=0, columns=0, init_random=False):
         if arr is None:
             arr = [[0 if not random else random.random() - .5] * columns for _ in range(rows)]
@@ -19,6 +17,10 @@ class Matrix:
         self.arr = arr
         self.rows = len(arr)
         self.columns = len(arr[0]) if self.rows > 0 else 0
+
+    @property
+    def shape(self):
+        return f'{self.rows}x{self.columns}'
 
     def get_value(self, row_index, column_index):
         return self.arr[row_index][column_index]
@@ -161,10 +163,12 @@ def sigmoid(num: float) -> float:
         # If the number is too small, we get an overflow, and thus return 0
         return 0
 
-def generate_training_data() -> InputData:
+def generate_training_data(size=1000) -> InputData:
     data = []
-    for i in range(0, 200):
-        data.append((Matrix([[i], [i], [i]]), Matrix([[sigmoid(i)], [sigmoid(i)], [sigmoid(i)]])))
+    for i in range(0, size):
+        in_zero_to_200 = random.random() * 200
+        greater_than_100 = in_zero_to_200 > 100
+        data.append((Matrix([[in_zero_to_200], [in_zero_to_200]]), Matrix([[in_zero_to_200], [in_zero_to_200]])))
     random.shuffle(data)
     return data
 
@@ -175,10 +179,8 @@ def simoid_prime(num: float) -> float:
 class Network:
 
     def __init__(self):
-        # We have 2 hidden layers with 3 nodes in them each; so including input and output 
-        # we have a total of 4 layers
-        self.num_layers = 4
-        self.hidden_layer_height = 3
+        self.num_layers = 3
+        self.hidden_layer_height = 2
         
         self.weights = [
             Matrix(rows=self.hidden_layer_height, columns=self.hidden_layer_height, init_random=True)
@@ -194,25 +196,23 @@ class Network:
 
         return current
 
-    def feedforward(self, input: Matrix) -> Tuple[List[Matrix], List[Matrix]]:
+    def get_activatons(self, input: Matrix) -> List[Matrix]:
         """
-        Returns a list of the input to the sigmoid function (we call this Z or D). Also
-        a list of the activations at each layer.
+        Returns a list where the element at an index is the activation at that
+        layer in the network; includes input, hidden, and output layers
         """
         activations = [input]
-        before_sigma = []
 
         for i in range(self.num_layers):
-            # Calculate all the hidden edges, and apply the sigmoid at the very end
-            before_sigma.append(self.weights[i] * activations[-1])
-            activations.append(before_sigma[-1].transform(sigmoid))
+            activations.append((self.weights[i] * activations[-1]).transform(sigmoid))
 
-        return activations, before_sigma
+        return activations
         
     def cost(self, input_data: InputData) -> float:
         cost_arr = []
         for data in input_data:
-            cost_arr.append(math.pow(self.predict(data[0]) - data[1], 2))
+            square_difference = (self.predict(data[0]) - data[1]).transform(lambda x: math.pow(x, 2))
+            cost_arr.append(square_difference)
 
         return sum(cost_arr)
 
@@ -221,28 +221,21 @@ class Network:
         layer_to_weight_deltas = defaultdict(lambda: [])
 
         for data in training_data:
-            grad = Matrix([[1], [1], [1]])
-            activations, before_sigma = self.feedforward(data[0])
+            activations = self.get_activatons(data[0])
+            d_c_d_a = 2 * (activations[-1] - data[1])
 
             for layer in range(self.num_layers - 1, -1, -1):
-                dAdD = activations[layer].transform(lambda x: x * (1 - x)) @ grad
-                dAdX = (self.weights[layer - 1].transpose() * before_sigma[layer - 1]) @ dAdD
-                dAdW = (before_sigma[layer - 1] * activations[layer - 1].transpose()) * dAdD
+                sigma_inverse = activations[layer].transform(lambda x: x * (1 - x))
+                d_c_d_w = d_c_d_a * (activations[layer - 1] @ sigma_inverse).transpose()
+                d_c_d_a = 2 * self.weights[layer - 1].transpose() * (d_c_d_a @ sigma_inverse)
 
                 # TODO: should this be adjusting layer - 1 ? Or we are off by 1 above
-                layer_to_weight_deltas[layer].append(dAdW)
-                grad = dAdX
+                layer_to_weight_deltas[layer].append(d_c_d_w)
 
         for layer in range(self.num_layers):
             # TODO: introduce learning rate!
             weight_delta = sum(layer_to_weight_deltas[layer]) / len(training_data)
-            bias_delta = sum(layer_to_weight_deltas[layer]) / len(training_data)
-
-            print(weight_delta)
-            self.weights[layer] += weight_delta
-            self.biases[layer] += bias_delta
-
-            print(f'Updated {layer} by {weight_delta=}, {bias_delta=}')
+            self.weights[layer] -= weight_delta
 
                 
 def main():
@@ -264,15 +257,14 @@ def main():
 
     random.seed(10)
     network = Network()
+    size = 10000
+    training_data = generate_training_data(size)
 
-    input = Matrix(arr=[[40], [40], [40]])
 
-    #print(f'{network.predict(input)=}')
-    #print(f'{network.feedforward(input)=}')
-
-    training_data = generate_training_data()
-
+    before_cost = network.cost(training_data) / size
     network.backprop(training_data)
+    after_cost = network.cost(training_data) / size
+    print(f'{before_cost=}, {after_cost=}')
 
 
 
