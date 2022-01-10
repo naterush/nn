@@ -289,8 +289,5 @@ def main():
     after_cost = network.cost(training_data)
     print(f'{before_cost=}, {after_cost=}')
 
-
-
-
 if __name__ == '__main__':
     main()
