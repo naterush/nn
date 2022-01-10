@@ -184,12 +184,13 @@ def sigmoid(x: float) -> float:
         return 0
 
 def generate_training_data(size=1000) -> InputData:
-    """Returns training data for the function > 100, over the range 0-200. Not super interesting, but it's ok."""
+    """Trains a neural network on a / b"""
     data = []
     for i in range(0, size):
-        in_zero_to_200 = random.random() * 200
-        greater_than_100 = in_zero_to_200 > 100
-        data.append((Matrix([[in_zero_to_200], [in_zero_to_200]]), Matrix([[in_zero_to_200], [in_zero_to_200]])))
+        a = random.random() * 200
+        b = random.random() * 200
+
+        data.append((Matrix([[a], [b]]), Matrix([[a / b], [a / b]])))
     random.shuffle(data)
     return data
 
@@ -278,14 +279,21 @@ class Network:
 def main():
     """Trains a simple, random network on the function > 100, and sees if the cost decreases (it does)!"""
 
-    random.seed(10)
+    random.seed(100)
     network = Network()
-    size = 10000
-    training_data = generate_training_data(size)
 
+    batch_size = 1000
+    num_batches = 250
 
+    training_data = generate_training_data(batch_size)
     before_cost = network.cost(training_data)
-    network.backprop(training_data)
+
+    for batch_num in range(num_batches):
+        if batch_num % 25 == 0:
+            print(f'Batch {batch_num} of {num_batches}, with cost of {network.cost(training_data)}')
+        network.backprop(training_data)
+        training_data = generate_training_data(batch_size)
+
     after_cost = network.cost(training_data)
     print(f'{before_cost=}, {after_cost=}')
 
